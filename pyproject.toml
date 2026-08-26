@@ -1,0 +1,22 @@
+[project]
+name = "mynns"
+version = "0.1.0"
+description = "深度学习练习项目：MLP / CNN / Transformer"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.2",
+    "torchvision>=0.17",
+    "numpy",
+    "matplotlib",
+    "tqdm",
+]
+
+# 本机 CUDA 12.4 / RTX 3090：从 PyTorch 官方 cu124 源安装 GPU 版 torch
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+torchvision = { index = "pytorch-cu124" }
