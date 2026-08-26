@@ -3,3 +3,7 @@ torchvision>=0.17
 numpy
 matplotlib
 tqdm
+datasets
+tokenizers
+torchmetrics
+tensorboard

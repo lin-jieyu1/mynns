@@ -40,9 +40,10 @@ def main():
     for i, ax in enumerate(axes.flat):  # axes.flat 把 2x5 的子图展平成 1 维
         ax.imshow(images[i].squeeze(), cmap="gray")  # squeeze() 去掉 (1,28,28) 里的通道维度 -> (28,28)
         color = "green" if preds[i] == labels[i] else "red"  # 对错决定标题颜色
-        ax.set_title(f"真:{labels[i].item()} 预:{preds[i].item()}", color=color)
+        ax.set_title(f"true:{labels[i].item()} pred:{preds[i].item()}", color=color)
         ax.axis("off")  # 不显示坐标轴刻度
     plt.tight_layout()  # 自动调整子图间距
+    plt.savefig("predict.png")  # 远程环境没有图形窗口，保存成文件再看
     plt.show()
 
 

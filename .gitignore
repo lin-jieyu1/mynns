@@ -5,4 +5,7 @@ data/
 weights/
 mlp/weights/
 cnn/weights/
+transformer/tokenizer_*.json
+transformer/Helsinki-NLP_opus-100_weights/
+transformer/runs/
 .venv/

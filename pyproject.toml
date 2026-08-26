@@ -9,6 +9,10 @@ dependencies = [
     "numpy",
     "matplotlib",
     "tqdm",
+    "datasets",
+    "tokenizers",
+    "torchmetrics",
+    "tensorboard",
 ]
 
 # 本机 CUDA 12.4 / RTX 3090：从 PyTorch 官方 cu124 源安装 GPU 版 torch

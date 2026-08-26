@@ -1,21 +1,22 @@
 from model import build_transformer
 from dataset import BilingualDataset, causal_mask
-from config import get_config, get_weights_file_path, latest_weights_file_path
+from config import get_config, get_weights_file_path, latest_weights_file_path, _weights_dir
 
-import torchtext.datasets as datasets
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader, random_split
-from torch.optim.lr_scheduler import LambdaLR
+from torch.utils.data import DataLoader, random_split
 
 import warnings
 from tqdm import tqdm
 import os
 from pathlib import Path
 
+# AutoDL 直连 huggingface.co 不通，未设置时默认走国内镜像
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
 # Huggingface datasets and tokenizers
-from datasets import load_dataset # 本地函数，处理数据
-from tokenizers import Tokenizer # tokenizer工具
+from datasets import load_dataset
+from tokenizers import Tokenizer
 from tokenizers.models import BPE
 from tokenizers.trainers import BpeTrainer
 from tokenizers.pre_tokenizers import ByteLevel
@@ -136,9 +137,9 @@ def get_or_build_tokenizer(config, ds, lang):
         tokenizer.decoder = ByteLevelDecoder()
         trainer = BpeTrainer(
             special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"],
-            vocab_size=50000,
+            vocab_size=config["vocab_size"],
             min_frequency=2,
-            initial_alphabet=ByteLevel.ALPHABET)
+            initial_alphabet=ByteLevel.alphabet())
         tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer) # 
         tokenizer.save(str(tokenizer_path))
     else:
@@ -156,6 +157,25 @@ def get_ds(config):
     # Build tokenizers
     tokenizer_src = get_or_build_tokenizer(config, ds_raw, config['lang_src'])
     tokenizer_tgt = get_or_build_tokenizer(config, ds_raw, config['lang_tgt'])
+
+    # 丢掉空句和超过 seq_len 的句子，否则 Dataset.__getitem__ 会直接 ValueError
+    max_src = config["seq_len"] - 2  # encoder 还要拼 [SOS] [EOS]
+    max_tgt = config["seq_len"] - 1  # decoder 还要拼 [SOS] 或 [EOS]
+    src_lang, tgt_lang = config["lang_src"], config["lang_tgt"]
+
+    def keep(item):
+        src = item["translation"][src_lang]
+        tgt = item["translation"][tgt_lang]
+        if not src or not tgt:
+            return False
+        return (
+            len(tokenizer_src.encode(src).ids) <= max_src
+            and len(tokenizer_tgt.encode(tgt).ids) <= max_tgt
+        )
+
+    n_before = len(ds_raw)
+    ds_raw = ds_raw.filter(keep)
+    print(f"Kept {len(ds_raw)}/{n_before} pairs within seq_len={config['seq_len']}")
 
     # Keep 90% for training, 10% for validation
     train_ds_size = int(0.9 * len(ds_raw))
@@ -208,7 +228,7 @@ def train_model(config):
     device = torch.device(device)
 
     # Make sure the weights folder exists
-    Path(f"{config['datasource']}_{config['model_folder']}").mkdir(parents=True, exist_ok=True)
+    Path(_weights_dir(config)).mkdir(parents=True, exist_ok=True)
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
     model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
@@ -232,7 +252,7 @@ def train_model(config):
     else:
         print('No model to preload, starting from scratch')
 
-    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1).to(device)
+    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_tgt.token_to_id('[PAD]'), label_smoothing=0.1).to(device)
 
     for epoch in range(initial_epoch, config['num_epochs']):
         torch.cuda.empty_cache()
